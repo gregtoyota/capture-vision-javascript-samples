@@ -3,10 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-    <meta
-      name="description"
-      content="Dynamsoft VIN Scanner accurately identifies a vehicle's unique VIN through its barcode and text lines, extracting the vehicle's information and converting it into human-readable fields."
-    />
+    <meta name="description" content="Dynamsoft VIN Scanner accurately identifies a vehicle's unique VIN through its barcode and text lines, extracting the vehicle's information and converting it into human-readable fields." />
     <meta name="keywords" content="vin, scan vin, read vin, ocr, barcode, camera, capture vision" />
     <title>VIN Scanner - Minimum elements</title>
   </head>
@@ -20,6 +17,7 @@
       <button type="button" id="toggle-scan-btn">Stop Scanner</button>
       <button type="button" id="toggle-torch-btn">Toggle Torch</button>
     </div>
+
     <div id="camera-view-container" style="height: 40vh"></div>
     <br />
     Results:
@@ -33,8 +31,9 @@
       Dynamsoft.Core.CoreModule.loadWasm(["DBR", "DLR", "DCP"]);
 
       let cameraView, cameraEnhancer, cvRouter;
-      let scannerActive = true;
       let pInit;
+      let scannerActive = true;
+      let torchOn = false;
 
       const init = async () => {
         cameraView = await Dynamsoft.DCE.CameraView.createInstance();
@@ -44,6 +43,7 @@
         cvRouter = await Dynamsoft.CVR.CaptureVisionRouter.createInstance();
         cameraView.setVideoFit("cover");
         cameraView.setScanLaserVisible(true);
+
         await cameraEnhancer.setScanRegion({
           x: 10,
           y: 40,
@@ -79,17 +79,12 @@
 
             if (parsedResults) {
               const parsedVIN = formatVin(parsedResults[0]);
-              const resultContent = `Scanned by ${resultType}\nVIN: ${vinString}\n${parsedVIN}`;
-              resultsContainer.innerText = resultContent;
+              resultsContainer.innerText = `Scanned by ${resultType}\nVIN: ${vinString}\n${parsedVIN}`;
             } else {
-              alert(`Failed to parse the content.`);
-              const resultContent = `Scanned by ${resultType}\nVIN: ${vinString}`;
-              resultsContainer.innerText = resultContent;
+              resultsContainer.innerText = `Scanned by ${resultType}\nVIN: ${vinString}`;
             }
 
-            const imageData = result.items.find(
-              (item) => item.type === Dynamsoft.Core.EnumCapturedResultItemType.CRIT_ORIGINAL_IMAGE
-            )?.imageData;
+            const imageData = result.items.find(item => item.type === Dynamsoft.Core.EnumCapturedResultItemType.CRIT_ORIGINAL_IMAGE)?.imageData;
             if (imageData) {
               const imageCanvas = imageData.toCanvas();
               imageCanvas.style.width = "100%";
@@ -99,6 +94,7 @@
             }
           }
         };
+
         await cvRouter.addResultReceiver(resultReceiver);
 
         return {
@@ -136,6 +132,7 @@
             await cameraEnhancer.open();
             await cvRouter.startCapturing(SCAN_TEMPLATES[mode]);
             cameraEnhancer.setPixelFormat(Dynamsoft.Core.EnumImagePixelFormat.IPF_ABGR_8888);
+
             scannerActive = true;
             document.getElementById("toggle-scan-btn").innerText = "Stop Scanner";
           } catch (ex) {
@@ -143,6 +140,44 @@
           }
         })
       );
+
+      document.getElementById("toggle-scan-btn").addEventListener("click", async () => {
+        try {
+          const { cameraEnhancer, cvRouter } = await (pInit = pInit || init());
+
+          if (scannerActive) {
+            await cvRouter.stopCapturing();
+            await cameraEnhancer.close();
+            document.getElementById("toggle-scan-btn").innerText = "Start Scanner";
+          } else {
+            await cameraEnhancer.open();
+            await cvRouter.startCapturing("ReadVIN");
+            document.getElementById("toggle-scan-btn").innerText = "Stop Scanner";
+          }
+
+          scannerActive = !scannerActive;
+        } catch (e) {
+          alert("Scanner toggle failed: " + e.message);
+        }
+      });
+
+      document.getElementById("toggle-torch-btn").addEventListener("click", async () => {
+        try {
+          const { cameraEnhancer } = await (pInit = pInit || init());
+
+          if (torchOn) {
+            await cameraEnhancer.turnOffTorch();
+            document.getElementById("toggle-torch-btn").innerText = "Toggle Torch";
+          } else {
+            await cameraEnhancer.turnOnTorch();
+            document.getElementById("toggle-torch-btn").innerText = "Torch ON";
+          }
+
+          torchOn = !torchOn;
+        } catch (e) {
+          alert("Torch toggle failed: " + e.message);
+        }
+      });
 
       function extractVinDetails(result) {
         const parseResultInfo = {};
@@ -170,44 +205,6 @@
       document.addEventListener("DOMContentLoaded", () => {
         scanTitle.innerText = SCAN_MODE_TITLES["both"];
         document.getElementById("scan-both-btn").click();
-      });
-
-      // Toggle Scanner On/Off
-      document.getElementById("toggle-scan-btn").addEventListener("click", async () => {
-        try {
-          const { cameraEnhancer, cvRouter } = await (pInit = pInit || init());
-
-          if (scannerActive) {
-            await cvRouter.stopCapturing();
-            await cameraEnhancer.close();
-            document.getElementById("toggle-scan-btn").innerText = "Start Scanner";
-          } else {
-            await cameraEnhancer.open();
-            await cvRouter.startCapturing("ReadVIN");
-            document.getElementById("toggle-scan-btn").innerText = "Stop Scanner";
-          }
-          scannerActive = !scannerActive;
-        } catch (e) {
-          alert("Scanner toggle failed: " + e.message);
-        }
-      });
-
-      // Toggle Torch
-      document.getElementById("toggle-torch-btn").addEventListener("click", async () => {
-        try {
-          const { cameraEnhancer } = await (pInit = pInit || init());
-
-          const torchState = cameraEnhancer.getTorchState();
-          if (torchState === Dynamsoft.DCE.EnumTorchState.TS_ON) {
-            await cameraEnhancer.turnOffTorch();
-            document.getElementById("toggle-torch-btn").innerText = "Toggle Torch";
-          } else {
-            await cameraEnhancer.turnOnTorch();
-            document.getElementById("toggle-torch-btn").innerText = "Torch ON";
-          }
-        } catch (e) {
-          alert("Torch toggle failed: " + e.message);
-        }
       });
     </script>
   </body>
